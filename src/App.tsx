@@ -330,38 +330,22 @@ const generateId = () => (typeof crypto !== "undefined" && typeof crypto.randomU
 
 const PDF_ROOT_ID = "pena-report";
 
+const FALLBACK_RGBA = "rgba(0, 0, 0, 1)";
+
 const sanitizeColorsForCanvas = (root: HTMLElement, view: Window) => {
 	const apply = (element: HTMLElement) => {
 		const style = view.getComputedStyle(element);
-		const colorProps: Array<keyof CSSStyleDeclaration> = [
-			"color",
-			"backgroundColor",
-			"borderTopColor",
-			"borderRightColor",
-			"borderBottomColor",
-			"borderLeftColor",
-			"outlineColor",
-			"boxShadow",
-		];
 
-		colorProps.forEach((prop) => {
-			const value = style[prop];
+		for (let i = 0; i < style.length; i += 1) {
+			const propertyName = style.item(i);
+			if (!propertyName) continue;
+			const value = style.getPropertyValue(propertyName);
 			if (typeof value === "string" && value.includes("oklch")) {
 				const sanitized = replaceOKLCHFunctions(value, style);
 				if (sanitized) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(element.style as any)[prop] = sanitized;
+					element.style.setProperty(propertyName, sanitized);
 				}
 			}
-		});
-
-		const twBgOpacity = style.getPropertyValue("--tw-bg-opacity");
-		if (twBgOpacity) {
-			element.style.setProperty("--tw-bg-opacity", twBgOpacity);
-		}
-		const twTextOpacity = style.getPropertyValue("--tw-text-opacity");
-		if (twTextOpacity) {
-			element.style.setProperty("--tw-text-opacity", twTextOpacity);
 		}
 	};
 
@@ -375,7 +359,7 @@ const sanitizeColorsForCanvas = (root: HTMLElement, view: Window) => {
 };
 
 const replaceOKLCHFunctions = (input: string, style: CSSStyleDeclaration) => {
-	const converted = input.replace(/oklch\(([^)]+)\)/gi, (match) => convertOKLCHToRGBA(match, style) ?? match);
+	const converted = input.replace(/oklch\(([^)]+)\)/gi, (match) => convertOKLCHToRGBA(match, style) ?? FALLBACK_RGBA);
 	return converted;
 };
 
@@ -387,13 +371,29 @@ const convertOKLCHToRGBA = (oklchExpression: string, style: CSSStyleDeclaration)
 		return null;
 	}
 
-	const parseNumber = (token: string) => {
-		const cleaned = token.replace(/deg|rad|grad|turn|%/gi, "");
+	const parseNumber = (token: string): number | null => {
+		const trimmed = token.trim();
+		const varMatch = trimmed.match(/var\((--[^,\s)]+)(?:,\s*([^)]*))?\)/i);
+		if (varMatch) {
+			const [, varName, fallback] = varMatch;
+			const raw = style.getPropertyValue(varName).trim();
+			if (raw) {
+				const resolved = parseNumber(raw);
+				if (resolved !== null) {
+					return resolved;
+				}
+			}
+			if (fallback) {
+				return parseNumber(fallback);
+			}
+		}
+
+		const cleaned = trimmed.replace(/deg|rad|grad|turn|%/gi, "");
 		const value = Number.parseFloat(cleaned);
 		if (Number.isNaN(value)) {
 			return null;
 		}
-		if (token.trim().endsWith("%")) {
+		if (trimmed.endsWith("%")) {
 			return value / 100;
 		}
 		return value;
@@ -1249,9 +1249,26 @@ export default function App() {
 			onclone: (documentClone) => {
 				const view = documentClone.defaultView ?? window;
 				const target = documentClone.getElementById(PDF_ROOT_ID) as HTMLElement | null;
+				const rootStyle = documentClone.documentElement ? view.getComputedStyle(documentClone.documentElement) : null;
+				if (documentClone.documentElement) {
+					sanitizeColorsForCanvas(documentClone.documentElement as HTMLElement, view);
+				}
+				if (documentClone.body) {
+					sanitizeColorsForCanvas(documentClone.body, view);
+				}
 				if (target) {
 					sanitizeColorsForCanvas(target, view);
 				}
+				documentClone.querySelectorAll("style").forEach((styleElement) => {
+					const { textContent } = styleElement;
+					if (!textContent || !textContent.includes("oklch")) return;
+					const sanitized = textContent.replace(/oklch\(([^)]+)\)/gi, (match) => {
+						if (!rootStyle) return FALLBACK_RGBA;
+						const converted = convertOKLCHToRGBA(match, rootStyle);
+						return converted ?? FALLBACK_RGBA;
+					});
+					styleElement.textContent = sanitized;
+				});
 			},
 		});
 		const imageData = canvas.toDataURL("image/png");
