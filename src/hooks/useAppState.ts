@@ -34,9 +34,10 @@ const initialState: AppState = {
 	step: 1,
 	baseCrime: {
 		name: "",
-		article: "",
-		minPenalty: { years: 0, months: 0 },
-		maxPenalty: { years: 0, months: 0 },
+		title: "",
+		chapter: "",
+		minPenalty: { years: 0, months: 0, days: 0 },
+		maxPenalty: { years: 0, months: 0, days: 0 },
 		penaltyType: "Privativa de libertad",
 	},
 	circumstances: initialCircumstances(),
