@@ -19,9 +19,6 @@ export const SummarySidebar = ({ state, result }: { state: AppState; result: Cal
 						<span className="font-semibold text-slate-700">Delito:</span> {state.baseCrime.name || "Sin definir"}
 					</div>
 					<div>
-						<span className="font-semibold text-slate-700">Articulo:</span> {state.baseCrime.article || "Pendiente"}
-					</div>
-					<div>
 						<span className="font-semibold text-slate-700">Tipo de pena:</span> {state.baseCrime.penaltyType}
 					</div>
 					<div>
@@ -56,7 +53,7 @@ export const SummarySidebar = ({ state, result }: { state: AppState; result: Cal
 					<div className="mt-3 text-sm text-slate-600">
 						<div className="flex items-center justify-between">
 							<span>Tercio seleccionado:</span>
-							<Badge label={result.stage2.tercioSeleccionado} tone="blue" />
+							<Badge label={result.stage2.tercioSeleccionado} tone={result.stage2.tercioSeleccionado === "inferior" ? "green" : result.stage2.tercioSeleccionado === "intermedio" ? "yellow" : "red"} />
 						</div>
 						<div className="mt-2 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
 							{result.stage2.rationale}

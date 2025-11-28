@@ -9,11 +9,16 @@ export const yearsFromDuration = (duration: Duration) => Number(duration.years |
 export const formatYears = (value: number) => {
 	const years = Math.trunc(value);
 	const months = Math.round((value - years) * 12);
+	const days = Math.round(((value - years) * 12 - months) * 30);
 	const parts: string[] = [];
-	parts.push(`${years} anio${years === 1 ? "" : "s"}`);
+	parts.push(`${years} año${years === 1 ? "" : "s"}`);
 	if (months > 0) {
 		parts.push(`${months} mes${months === 1 ? "" : "es"}`);
 	}
+	if (days > 0) {
+		parts.push(`${days} día${days === 1 ? "" : "s"}`);
+	}
+
 	return parts.join(" ");
 };
 

@@ -1,8 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { FiChevronLeft, FiChevronRight, FiSave, FiPlus } from "react-icons/fi";
-
-// Types
-import type { ScenarioRecord } from "./types";
+import { useMemo, useRef } from "react";
+import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 // Hooks
 import { useAppState } from "./hooks/useAppState";
@@ -10,9 +7,10 @@ import { useAppState } from "./hooks/useAppState";
 // Utils
 import { calculatePenalty } from "./utils/calculations";
 import { validateState } from "./utils/validation";
-import { cloneState, generateId, clamp } from "./utils/helpers";
+import { clamp } from "./utils/helpers";
 import { sanitizeColorsForCanvas, convertOKLCHToRGBA } from "./utils/pdfHelpers";
 import { art45Options, atenuantesOptions, agravantesOptions, PDF_ROOT_ID, FALLBACK_RGBA } from "./utils/constants";
+import { CRIMES_LIST } from "./utils/crimes";
 
 // UI Components
 import {
@@ -28,16 +26,10 @@ import {
 import {
 	SummarySidebar,
 	ReportView,
-	ScenarioManager,
-	ComparisonPanel,
-	Glossary,
 } from "./components/sections";
 
 export default function App() {
 	const [state, dispatch] = useAppState();
-	const [drafts, setDrafts] = useState<ScenarioRecord[]>([]);
-	const [history, setHistory] = useState<ScenarioRecord[]>([]);
-	const [comparisonSet, setComparisonSet] = useState<string[]>([]);
 	const reportRef = useRef<HTMLDivElement | null>(null);
 
 	const validations = useMemo(() => validateState(state), [state]);
@@ -64,71 +56,6 @@ export default function App() {
 			const message = error instanceof Error ? error.message : "No se pudo completar el calculo.";
 			window.alert(message);
 		}
-	};
-
-	const handleSaveDraft = () => {
-		const title = window.prompt("Ingrese un nombre para el borrador:", state.baseCrime.name || "Caso sin titulo");
-		if (!title) return;
-		const scenario: ScenarioRecord = {
-			id: generateId(),
-			title,
-			createdAt: new Date().toLocaleString(),
-			status: "draft",
-			snapshot: cloneState(state),
-			result: state.result ? JSON.parse(JSON.stringify(state.result)) : null,
-		};
-		setDrafts((prev) => [...prev, scenario]);
-	};
-
-	const handleSaveHistory = () => {
-		if (!state.result) {
-			window.alert("Debe calcular la pena antes de guardar en el historial.");
-			return;
-		}
-		const title = window.prompt("Nombre del caso calculado:", state.baseCrime.name || "Caso sin titulo");
-		if (!title) return;
-		const scenario: ScenarioRecord = {
-			id: generateId(),
-			title,
-			createdAt: new Date().toLocaleString(),
-			status: "final",
-			snapshot: cloneState(state),
-			result: state.result ? JSON.parse(JSON.stringify(state.result)) : null,
-		};
-		setHistory((prev) => [...prev, scenario]);
-	};
-
-	const loadScenario = useCallback(
-		(scenario: ScenarioRecord) => {
-			const snapshot = cloneState(scenario.snapshot);
-			dispatch({
-				type: "loadSnapshot",
-				payload: {
-					baseCrime: snapshot.baseCrime,
-					circumstances: snapshot.circumstances,
-					result: scenario.result ?? null,
-					step: snapshot.step ?? (scenario.result ? 5 : 1),
-				},
-			});
-		},
-		[dispatch]
-	);
-
-	const deleteScenario = (id: string, source: "history" | "draft") => {
-		if (source === "history") {
-			setHistory((prev) => prev.filter((item) => item.id !== id));
-			setComparisonSet((prev) => prev.filter((item) => item !== id));
-		} else {
-			setDrafts((prev) => prev.filter((item) => item.id !== id));
-		}
-	};
-
-	const toggleComparison = (id: string) => {
-		setComparisonSet((prev) => {
-			if (prev.includes(id)) return prev.filter((item) => item !== id);
-			if (prev.length >= 3) return prev; // limite suave para mantener lectura
-			return [...prev, id];
-		});
 	};
 
 	const exportPDF = async () => {
@@ -182,11 +109,6 @@ export default function App() {
 		window.print();
 	};
 
-	const comparisonScenarios = useMemo(
-		() => history.filter((item) => comparisonSet.includes(item.id)),
-		[history, comparisonSet]
-	);
-
 	return (
 		<div className="min-h-screen bg-slate-100">
 			<StepIndicator currentStep={state.step} />
@@ -217,25 +139,62 @@ export default function App() {
 						{state.step === 1 && (
 							<SectionCard title="Datos del delito base" subtitle="Complete los campos para iniciar el calculo">
 								<div className="grid gap-4 md:grid-cols-2">
-									<div className="md:col-span-2 space-y-2">
-										<FieldLabel label="Nombre del delito" tooltip="Nombre segun el tipo penal imputado." />
-										<Input
+									<div className="space-y-2">
+										<FieldLabel label="Titulo:" />
+										<Select
+											value={state.baseCrime.title}
+											onChange={(event) =>
+												dispatch({ type: "updateBaseCrime", payload: { title: event.target.value } })
+											}
+										>
+											<option value="" selected>-- Seleccione un titulo --</option>
+											{
+												CRIMES_LIST.map((crime) => (
+													<option key={crime.number} value={crime.name}>
+														{crime.number}: {crime.name}
+													</option>
+												))
+											}
+										</Select>
+									</div>
+									<div className="space-y-2">
+										<FieldLabel label="Capitulo:" />
+										<Select
+											value={state.baseCrime.chapter}
+											onChange={(event) =>
+												dispatch({ type: "updateBaseCrime", payload: { chapter: event.target.value } })
+											}
+										>
+											<option value="" selected>-- Seleccione un capitulo --</option>
+											{
+												state.baseCrime.title === "" ? [] :
+												CRIMES_LIST.filter((crime) => crime.name === state.baseCrime.title)[0]?.chapters.map((chapter) => (
+													<option key={chapter.number} value={chapter.name}>
+														{chapter.number}: {chapter.name}
+													</option>
+												))
+											}
+										</Select>
+									</div>
+									<div className="space-y-2">
+										<FieldLabel label="Delito:" />
+										<Select
 											value={state.baseCrime.name}
 											onChange={(event) =>
 												dispatch({ type: "updateBaseCrime", payload: { name: event.target.value } })
 											}
-											placeholder="Ej. Robo agravado"
-										/>
-									</div>
-									<div className="space-y-2">
-										<FieldLabel label="Articulo" tooltip="Articulo especifico del Codigo Penal." />
-										<Input
-											value={state.baseCrime.article}
-											onChange={(event) =>
-												dispatch({ type: "updateBaseCrime", payload: { article: event.target.value } })
+										>
+											<option value="" selected>-- Seleccione un delito --</option>
+											{
+												state.baseCrime.chapter === "" || state.baseCrime.title === "" ? [] :
+												CRIMES_LIST.filter((crime) => crime.name === state.baseCrime.title)[0]?.chapters
+													.filter((chapter) => chapter.name === state.baseCrime.chapter)[0]?.articles.map((article) => (
+														<option key={article.number} value={"Art. " + article.number + " - " + article.name}>
+															Art. {article.number}: {article.name}
+														</option>
+													))
 											}
-											placeholder="Ej. Art. 189"
-										/>
+										</Select>
 									</div>
 									<div className="space-y-2">
 										<FieldLabel label="Tipo de pena" />
@@ -251,71 +210,107 @@ export default function App() {
 											<option>Otra</option>
 										</Select>
 									</div>
-									<div className="space-y-2">
-										<FieldLabel label="Pena minima (anios)" />
-										<Input
-											type="number"
-											min={0}
-											value={state.baseCrime.minPenalty.years}
-											onChange={(event) =>
-												dispatch({
-													type: "updateBaseCrime",
-													payload: {
-														minPenalty: { ...state.baseCrime.minPenalty, years: Number(event.target.value) },
-													},
-												})
-											}
-										/>
-									</div>
-									<div className="space-y-2">
-										<FieldLabel label="Pena minima (meses)" />
-										<Input
-											type="number"
-											min={0}
-											max={11}
-											value={state.baseCrime.minPenalty.months}
-											onChange={(event) =>
-												dispatch({
-													type: "updateBaseCrime",
-													payload: {
-														minPenalty: { ...state.baseCrime.minPenalty, months: Number(event.target.value) },
-													},
-												})
-											}
-										/>
-									</div>
-									<div className="space-y-2">
-										<FieldLabel label="Pena maxima (anios)" />
-										<Input
-											type="number"
-											min={0}
-											value={state.baseCrime.maxPenalty.years}
-											onChange={(event) =>
-												dispatch({
-													type: "updateBaseCrime",
-													payload: {
-														maxPenalty: { ...state.baseCrime.maxPenalty, years: Number(event.target.value) },
-													},
-												})
-											}
-										/>
-									</div>
-									<div className="space-y-2">
-										<FieldLabel label="Pena maxima (meses)" />
-										<Input
-											type="number"
-											min={0}
-											max={11}
-											value={state.baseCrime.maxPenalty.months}
-											onChange={(event) =>
-												dispatch({
-													type: "updateBaseCrime",
-													payload: {
-														maxPenalty: { ...state.baseCrime.maxPenalty, months: Number(event.target.value) },
-													},
-												})
-											}
-										/>
+									<div className="md:col-span-2 grid gap-4 md:grid-cols-3">
+										<div className="space-y-2">
+											<FieldLabel label="Pena minima (años)" />
+											<Input
+												type="number"
+												min={0}
+												value={state.baseCrime.minPenalty.years}
+												onChange={(event) =>
+													dispatch({
+														type: "updateBaseCrime",
+														payload: {
+															minPenalty: { ...state.baseCrime.minPenalty, years: Number(event.target.value) },
+														},
+													})
+												}
+											/>
+										</div>
+										<div className="space-y-2">
+											<FieldLabel label="Pena minima (meses)" />
+											<Input
+												type="number"
+												min={0}
+												max={11}
+												value={state.baseCrime.minPenalty.months}
+												onChange={(event) =>
+													dispatch({
+														type: "updateBaseCrime",
+														payload: {
+															minPenalty: { ...state.baseCrime.minPenalty, months: Number(event.target.value) },
+														},
+													})
+												}
+											/>
+										</div>
+										<div className="space-y-3">
+											<FieldLabel label="Pena minima (días)" />
+											<Input
+												type="number"
+												min={0}
+												max={31}
+												value={state.baseCrime.minPenalty.days}
+												onChange={(event) =>
+													dispatch({
+														type: "updateBaseCrime",
+														payload: {
+															minPenalty: { ...state.baseCrime.minPenalty, days: Number(event.target.value) },
+														},
+													})
+												}
+											/>
+										</div>
+										<div className="space-y-2">
+											<FieldLabel label="Pena maxima (años)" />
+											<Input
+												type="number"
+												min={0}
+												value={state.baseCrime.maxPenalty.years}
+												onChange={(event) =>
+													dispatch({
+														type: "updateBaseCrime",
+														payload: {
+															maxPenalty: { ...state.baseCrime.maxPenalty, years: Number(event.target.value) },
+														},
+													})
+												}
+											/>
+										</div>
+										<div className="space-y-2">
+											<FieldLabel label="Pena maxima (meses)" />
+											<Input
+												type="number"
+												min={0}
+												max={11}
+												value={state.baseCrime.maxPenalty.months}
+												onChange={(event) =>
+													dispatch({
+														type: "updateBaseCrime",
+														payload: {
+															maxPenalty: { ...state.baseCrime.maxPenalty, months: Number(event.target.value) },
+														},
+													})
+												}
+											/>
+										</div>
+										<div className="space-y-3">
+											<FieldLabel label="Pena maxima (días)" />
+											<Input
+												type="number"
+												min={0}
+												max={31}
+												value={state.baseCrime.maxPenalty.days}
+												onChange={(event) =>
+													dispatch({
+														type: "updateBaseCrime",
+														payload: {
+															maxPenalty: { ...state.baseCrime.maxPenalty, days: Number(event.target.value) },
+														},
+													})
+												}
+											/>
+										</div>
 									</div>
 								</div>
 							</SectionCard>
@@ -589,18 +584,6 @@ export default function App() {
 							</div>
 							<div className="flex flex-wrap gap-3">
 								<button
-									onClick={handleSaveDraft}
-									className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-								>
-									<FiSave /> Guardar borrador
-								</button>
-								<button
-									onClick={handleSaveHistory}
-									className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-								>
-									<FiPlus /> Guardar caso
-								</button>
-								<button
 									onClick={() => dispatch({ type: "reset" })}
 									className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
 								>
@@ -612,17 +595,6 @@ export default function App() {
 
 					<SummarySidebar state={state} result={state.result} />
 				</div>
-
-				<ScenarioManager
-					history={history}
-					drafts={drafts}
-					onLoad={loadScenario}
-					onDelete={deleteScenario}
-					onCompareToggle={toggleComparison}
-					comparisonSet={comparisonSet}
-				/>
-				<ComparisonPanel scenarios={comparisonScenarios} />
-				<Glossary />
 			</div>
 		</div>
 	);

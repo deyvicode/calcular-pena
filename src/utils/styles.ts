@@ -5,6 +5,7 @@ export const badgeColors = {
 	green: "bg-emerald-100 text-emerald-700",
 	red: "bg-rose-100 text-rose-700",
 	blue: "bg-blue-100 text-blue-700",
+	yellow: "bg-amber-100 text-amber-700",
 };
 
 export type BadgeTone = keyof typeof badgeColors;

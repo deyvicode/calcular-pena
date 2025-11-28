@@ -1,8 +1,10 @@
-export type Duration = { years: number; months: number };
+export type Duration = { years: number; months: number; days: number };
 
 export type BaseCrime = {
+	title: string;
+	chapter: string;
+	//article: string;
 	name: string;
-	article: string;
 	minPenalty: Duration;
 	maxPenalty: Duration;
 	penaltyType: string;

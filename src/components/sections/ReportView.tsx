@@ -33,8 +33,7 @@ export const ReportView = ({
 					<h3 className="text-base font-semibold text-slate-900">INFORME DE DETERMINACION DE PENA</h3>
 					<p className="text-xs text-slate-500">Fecha: {new Date().toLocaleDateString()}</p>
 					<p className="mt-1 font-medium text-slate-700">
-						Delito analizado: {state.baseCrime.name || "Sin definir"} (
-						{state.baseCrime.article || "Articulo pendiente"})
+						Delito analizado: {state.baseCrime.name || "Sin definir"}
 					</p>
 				</div>
 
@@ -43,7 +42,7 @@ export const ReportView = ({
 					<ul className="mt-2 space-y-1">
 						<li>Pena legal minima: {formatYears(result.stage1.min)}</li>
 						<li>Pena legal maxima: {formatYears(result.stage1.max)}</li>
-						<li>Rango punitivo: {result.stage1.range.toFixed(3)} anios</li>
+						<li>Rango punitivo: {result.stage1.range.toFixed(3)} años</li>
 					</ul>
 				</div>
 
